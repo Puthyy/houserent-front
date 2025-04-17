@@ -2,7 +2,17 @@
   <div class="listing-detail">
     <div class="listing-container">
       <div class="listing-header">
-        <h1>{{ listing.housename }}</h1>
+        <div class="header-left">
+          <el-button 
+            type="primary" 
+            size="small"
+            @click="goBack"
+            class="back-button"
+          >
+            返回
+          </el-button>
+          <h1>{{ listing.housename }}</h1>
+        </div>
         <el-tag :type="listing.status === 'available' ? 'success' : 'danger'">
           {{ listing.status === 'available' ? '可租' : '已租' }}
         </el-tag>
@@ -39,9 +49,13 @@
             </div>
             <div class="info-item">
               <span class="label">状态：</span>
-              <el-tag :type="listing.status === 'available' ? 'success' : 'danger'">
+              <el-tag :type="listing.status === 'available' ? 'success' : 'info'">
                 {{ listing.status === 'available' ? '可租' : '已租' }}
               </el-tag>
+            </div>
+            <div class="info-item">
+              <span class="label">创建时间：</span>
+              <span>{{ formatDate(listing.CreatedAt) }}</span>
             </div>
             <div class="info-item">
               <span class="label">链上交易：</span>
@@ -53,7 +67,7 @@
         <el-card class="landlord-card">
           <template #header>
             <div class="card-header">
-              <span>房东信息</span>
+              <span>其他信息</span>
             </div>
           </template>
 
@@ -63,12 +77,28 @@
               <span>{{ listing.landlord_id }}</span>
             </div>
             <div class="info-item">
-              <span class="label">房东用户名：</span>
+              <span class="label">房东名字：</span>
               <span>{{ landlord.username }}</span>
             </div>
             <div class="info-item">
               <span class="label">邮箱：</span>
               <span>{{ landlord.email }}</span>
+            </div>
+            <div class="info-item" v-if="listing.status !== 'available'">
+              <span class="label">租客ID：</span>
+              <span>{{ listing.tenant_id }}</span>
+            </div>
+            <div class="info-item" v-if="transaction">
+              <span class="label">交易ID：</span>
+              <span>{{ transaction.ID }}</span>
+            </div>
+            <div class="info-item" v-if="transaction">
+              <span class="label">起租日期：</span>
+              <span>{{ transaction.start_date }}</span>
+            </div>
+            <div class="info-item" v-if="transaction">
+              <span class="label">到期日期：</span>
+              <span>{{ transaction.end_date }}</span>
             </div>
             <div class="info-item">
               <span class="label">链上交易：</span>
@@ -81,6 +111,14 @@
           <template #header>
             <div class="card-header">
               <span>租客评价</span>
+              <el-button 
+                v-if="canWriteReview"
+                type="primary" 
+                size="small"
+                @click="showReviewDialog"
+              >
+                写评价
+              </el-button>
             </div>
           </template>
 
@@ -88,10 +126,28 @@
             <div v-for="review in listing.reviews" :key="review.ID" class="review-item">
               <div class="review-header">
                 <el-rate v-model="review.rating" disabled show-score />
-                <span class="review-date">{{ formatDate(review.CreatedAt) }}</span>
+                <div class="review-actions">
+                  <span class="review-date">{{ formatDate(review.CreatedAt) }}</span>
+                  <el-button 
+                    v-if="canEditReview(review)"
+                    type="default" 
+                    size="small"
+                    @click="editReview(review)"
+                  >
+                    修改
+                  </el-button>
+                </div>
               </div>
               <p class="review-content">{{ review.comment }}</p>
             </div>
+          </div>
+        </el-card>
+
+        <!-- 添加评价按钮（当没有评价时显示） -->
+        <el-card v-else-if="canWriteReview" class="reviews-card">
+          <div class="empty-reviews">
+            <p>暂无评价</p>
+            <el-button type="primary" @click="showReviewDialog">写评价</el-button>
           </div>
         </el-card>
 
@@ -100,6 +156,40 @@
         </div>
       </div>
     </div>
+
+    <!-- 评价对话框 -->
+    <el-dialog
+      v-model="reviewDialogVisible"
+      title="写评价"
+      width="500px"
+    >
+      <el-form
+        ref="reviewFormRef"
+        :model="reviewForm"
+        :rules="reviewRules"
+        label-width="80px"
+      >
+        <el-form-item label="评分" prop="rating">
+          <el-rate v-model="reviewForm.rating" show-score />
+        </el-form-item>
+        <el-form-item label="评价" prop="comment">
+          <el-input
+            v-model="reviewForm.comment"
+            type="textarea"
+            :rows="4"
+            placeholder="请输入您的评价"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="reviewDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitReview" :loading="submitting">
+            提交
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
 
     <!-- 交易对话框 -->
     <el-dialog
@@ -144,7 +234,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
@@ -158,12 +248,22 @@ const loading = ref(false)
 const creating = ref(false)
 const listing = ref({})
 const landlord = ref({})
+const transaction = ref(null)
 const transactionDialogVisible = ref(false)
 const transactionFormRef = ref(null)
+const reviewDialogVisible = ref(false)
+const reviewFormRef = ref(null)
+const submitting = ref(false)
 
 const transactionForm = ref({
   start_date: '',
   months: 1
+})
+
+const reviewForm = ref({
+  id: null,
+  rating: 5,
+  comment: ''
 })
 
 const transactionRules = {
@@ -172,6 +272,16 @@ const transactionRules = {
   ],
   months: [
     { required: true, message: '请选择租期', trigger: 'change' }
+  ]
+}
+
+const reviewRules = {
+  rating: [
+    { required: true, message: '请选择评分', trigger: 'change' }
+  ],
+  comment: [
+    { required: true, message: '请输入评价内容', trigger: 'blur' },
+    { min: 5, max: 200, message: '评价内容长度在 5 到 200 个字符之间', trigger: 'blur' }
   ]
 }
 
@@ -193,6 +303,10 @@ const fetchListingDetail = async () => {
       listing.value = response.listing
       // 获取房东信息
       await fetchLandlordInfo(listing.value.landlord_id)
+      // 如果房源已租用，获取交易信息
+      if (listing.value.status !== 'available') {
+        await fetchTransactionInfo(listingId)
+      }
     } else {
       ElMessage.error('获取房源详情失败：数据格式错误')
     }
@@ -228,9 +342,47 @@ const fetchLandlordInfo = async (landlordId) => {
   }
 }
 
+// 获取交易信息
+const fetchTransactionInfo = async (listingId) => {
+  try {
+    const response = await api.post('/transaction/get', {
+      id: listingId
+    })
+    if (response && response.transaction) {
+      transaction.value = response.transaction
+    } else {
+      ElMessage.error('获取交易信息失败：数据格式错误')
+    }
+  } catch (error) {
+    console.error('获取交易信息失败:', error)
+    ElMessage.error(error.response?.data?.error || '获取交易信息失败')
+  }
+}
+
 // 禁用今天之前的日期
 const disabledDate = (time) => {
   return time.getTime() < Date.now() - 8.64e7 // 禁用今天之前的日期
+}
+
+// 判断是否可以写评价
+const canWriteReview = computed(() => {
+  // 检查是否已经评价过
+  const hasReviewed = listing.value.reviews?.some(
+    review => review.tenant_id === userStore.user?.ID
+  )
+  
+  return listing.value.status !== 'available' && 
+         userStore.user && 
+         userStore.user.role === 'tenant' &&
+         listing.value.tenant_id === userStore.user.ID &&
+         !hasReviewed
+})
+
+// 判断是否可以编辑评价
+const canEditReview = (review) => {
+  return userStore.user && 
+         userStore.user.role === 'tenant' && 
+         review.tenant_id === userStore.user.ID
 }
 
 // 显示交易对话框
@@ -274,15 +426,105 @@ const createTransaction = async () => {
     const response = await api.post('/transaction/create', transactionData)
     console.log('创建交易响应:', response)
     
-    ElMessage.success('交易创建成功')
-    transactionDialogVisible.value = false
-    // 刷新房源详情
-    await fetchListingDetail()
+    if (response && response.transaction) {
+      // 更新房源状态，保持原有信息不变
+      const updateListingData = {
+        id: listing.value.ID,
+        housename: listing.value.housename,
+        description: listing.value.description,
+        price: listing.value.price,
+        location: listing.value.location,
+        images: listing.value.images,
+        landlord_id: listing.value.landlord_id,
+        status: 'rented',
+        tenant_id: userStore.user.ID,
+        chain_tx: listing.value.chain_tx
+      }
+      await api.post('/listings/update', updateListingData)
+      
+      ElMessage.success('交易创建成功')
+      transactionDialogVisible.value = false
+      // 刷新房源详情
+      await fetchListingDetail()
+    } else {
+      ElMessage.error('创建交易失败：数据格式错误')
+    }
   } catch (error) {
     console.error('创建交易失败:', error)
     ElMessage.error(error.response?.data?.error || '创建交易失败')
   } finally {
     creating.value = false
+  }
+}
+
+// 显示评价对话框
+const showReviewDialog = () => {
+  if (!userStore.isLoggedIn) {
+    ElMessage.warning('请先登录')
+    router.push('/login')
+    return
+  }
+  reviewDialogVisible.value = true
+}
+
+// 编辑评价
+const editReview = (review) => {
+  reviewForm.value = {
+    id: review.ID,
+    rating: review.rating,
+    comment: review.comment
+  }
+  reviewDialogVisible.value = true
+}
+
+// 提交评价
+const submitReview = async () => {
+  if (!reviewFormRef.value) return
+
+  try {
+    await reviewFormRef.value.validate()
+    submitting.value = true
+
+    let response
+    if (reviewForm.value.id) {
+      // 更新评价
+      const updateData = {
+        id: reviewForm.value.id,
+        tenant_id: parseInt(userStore.user.ID),
+        rating: reviewForm.value.rating,
+        comment: reviewForm.value.comment
+      }
+      response = await api.post('/reviews/update', updateData)
+    } else {
+      // 创建新评价
+      const createData = {
+        listing_id: parseInt(listing.value.ID),
+        tenant_id: parseInt(userStore.user.ID),
+        rating: reviewForm.value.rating,
+        comment: reviewForm.value.comment
+      }
+      response = await api.post('/reviews/create', createData)
+    }
+    
+    if (response && response.review) {
+      ElMessage.success(reviewForm.value.id ? '评价修改成功' : '评价提交成功')
+      reviewDialogVisible.value = false
+      // 重置表单
+      reviewForm.value = {
+        id: null,
+        rating: 5,
+        comment: ''
+      }
+      // 刷新房源详情
+      await fetchListingDetail()
+    } else {
+      ElMessage.error('操作失败：数据格式错误')
+    }
+  } catch (error) {
+    console.error('操作失败:', error)
+    ElMessage.error(error.response?.data?.error || '操作失败')
+  } finally {
+    submitting.value = false
   }
 }
 
@@ -297,6 +539,11 @@ const formatDate = (dateString) => {
   })
 }
 
+// 返回上一页
+const goBack = () => {
+  router.back()
+}
+
 onMounted(() => {
   console.log('组件挂载，路由参数:', route.params)
   fetchListingDetail()
@@ -305,11 +552,11 @@ onMounted(() => {
 
 <style scoped>
 .listing-detail {
-  padding: 24px;
+  padding: 16px;
 }
 
 .listing-container {
-  max-width: 1000px;
+  max-width: 900px;
   margin: 0 auto;
 }
 
@@ -317,11 +564,21 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.back-button {
+  margin-right: 12px;
 }
 
 .listing-header h1 {
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 600;
   color: #303133;
   margin: 0;
@@ -329,7 +586,7 @@ onMounted(() => {
 
 .listing-content {
   display: grid;
-  gap: 24px;
+  gap: 16px;
 }
 
 .listing-card,
@@ -343,6 +600,8 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #ebeef5;
 }
 
 .card-header span {
@@ -353,27 +612,39 @@ onMounted(() => {
 .listing-info,
 .landlord-info {
   display: grid;
-  gap: 16px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  padding: 16px;
 }
 
 .info-item {
   display: flex;
-  line-height: 32px;
+  line-height: 28px;
+  min-width: 0; /* 防止内容溢出 */
 }
 
 .info-item .label {
-  width: 100px;
+  width: 80px;
   color: #606266;
   font-weight: 500;
+  flex-shrink: 0; /* 防止标签缩小 */
+}
+
+.info-item span:not(.label) {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .reviews-list {
   display: grid;
-  gap: 16px;
+  gap: 12px;
+  padding: 16px;
 }
 
 .review-item {
-  padding: 16px;
+  padding: 12px;
   background: #f5f7fa;
   border-radius: 8px;
 }
@@ -383,6 +654,24 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 8px;
+}
+
+.review-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.review-actions .el-button {
+  padding: 4px 12px;
+  border-radius: 4px;
+  background-color: #f5f7fa;
+  border: 1px solid #dcdfe6;
+}
+
+.review-actions .el-button:hover {
+  background-color: #e4e7ed;
+  border-color: #c6c8cc;
 }
 
 .review-date {
@@ -399,10 +688,10 @@ onMounted(() => {
 .action-card {
   display: flex;
   justify-content: center;
-  padding: 24px;
+  padding: 16px;
   background: #fff;
   border-radius: 8px;
-  margin-top: 24px;
+  margin-top: 16px;
 }
 
 .action-card .el-button {
@@ -415,5 +704,31 @@ onMounted(() => {
 
 :deep(.el-input-number) {
   width: 100%;
+}
+
+:deep(.el-card__body) {
+  padding: 0;
+}
+
+:deep(.el-form-item) {
+  margin-bottom: 16px;
+}
+
+:deep(.el-dialog__body) {
+  padding: 20px;
+}
+
+.empty-reviews {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px;
+  text-align: center;
+}
+
+.empty-reviews p {
+  color: #909399;
+  margin: 0;
 }
 </style> 
