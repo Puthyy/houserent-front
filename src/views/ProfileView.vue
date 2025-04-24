@@ -37,7 +37,7 @@
               </el-form-item>
             </div>
             <div class="form-row">
-              <el-form-item label="链上交易">
+              <el-form-item label="链上交易ID">
                 <el-input v-model="userForm.chain_tx" disabled />
               </el-form-item>
             </div>
@@ -61,9 +61,8 @@
           </template>
 
           <el-table :data="landlordListings" style="width: 100%">
-            <el-table-column prop="ID" label="房源ID" width="100" />
-            <el-table-column prop="housename" label="房源名称" />
-            <el-table-column prop="description" label="描述" />
+            <el-table-column prop="ID" label="房源ID" width="80" />
+            <el-table-column prop="housename" label="房源名称" width="140" />
             <el-table-column prop="location" label="位置" />
             <el-table-column prop="price" label="价格">
               <template #default="scope">
@@ -77,7 +76,7 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="tenant_id" label="租客ID" width="100" />
+            <el-table-column prop="tenant_id" label="租客ID" width="80" />
             <el-table-column label="评价">
               <template #default="scope">
                 <el-tag v-if="scope.row.reviews && scope.row.reviews.length > 0" type="success">
@@ -290,12 +289,18 @@
           <el-input v-model="createListingForm.location" placeholder="请输入房源位置" />
         </el-form-item>
         <el-form-item label="图片" prop="images">
-          <el-input
-            v-model="createListingForm.images"
-            type="textarea"
-            :rows="2"
-            placeholder="请输入图片URL，多个图片用逗号分隔"
-          />
+          <el-upload
+            class="listing-uploader"
+            action="/api/upload"
+            :on-success="handleUploadSuccess"
+            :on-error="handleUploadError"
+            :before-upload="beforeUpload"
+            :file-list="fileList"
+            list-type="picture-card"
+            :limit="5"
+          >
+            <el-icon><Plus /></el-icon>
+          </el-upload>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -311,10 +316,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useUserStore } from '@/stores/user'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
 import api from '@/utils/auth'
 
 const router = useRouter()
@@ -331,6 +337,7 @@ const confirming = ref(false)
 const createListingDialogVisible = ref(false)
 const createListingFormRef = ref(null)
 const creating = ref(false)
+const fileList = ref([])
 
 const userForm = ref({
   id: '',
@@ -585,6 +592,40 @@ const confirmTransaction = async () => {
   }
 }
 
+// 上传前检查
+const beforeUpload = (file) => {
+  const isImage = file.type.startsWith('image/')
+  const isLt2M = file.size / 1024 / 1024 < 2
+
+  if (!isImage) {
+    ElMessage.error('只能上传图片文件！')
+    return false
+  }
+  if (!isLt2M) {
+    ElMessage.error('图片大小不能超过 2MB！')
+    return false
+  }
+  return true
+}
+
+// 上传成功处理
+const handleUploadSuccess = (response, file) => {
+  if (response && response.url) {
+    fileList.value.push({
+      name: file.name,
+      url: response.url
+    })
+    ElMessage.success('图片上传成功')
+  } else {
+    ElMessage.error('图片上传失败：数据格式错误')
+  }
+}
+
+// 上传失败处理
+const handleUploadError = () => {
+  ElMessage.error('图片上传失败')
+}
+
 // 显示创建房源对话框
 const showCreateListingDialog = () => {
   createListingForm.value = {
@@ -594,6 +635,7 @@ const showCreateListingDialog = () => {
     location: '',
     images: ''
   }
+  fileList.value = []
   createListingDialogVisible.value = true
 }
 
@@ -605,12 +647,15 @@ const createListing = async () => {
     await createListingFormRef.value.validate()
     creating.value = true
 
+    // 处理图片URL
+    const imageUrls = fileList.value.map(file => file.url).join(',')
+
     const listingData = {
       housename: createListingForm.value.housename,
       description: createListingForm.value.description,
       price: parseFloat(createListingForm.value.price),
       location: createListingForm.value.location,
-      images: createListingForm.value.images,
+      images: imageUrls,
       landlord_id: parseInt(userStore.user.ID),
       status: 'available',
       chain_tx: ''
@@ -758,5 +803,20 @@ onMounted(() => {
 
 .el-select {
   width: 100%;
+}
+
+.listing-uploader {
+  width: 100%;
+}
+
+.listing-uploader :deep(.el-upload--picture-card) {
+  width: 100px;
+  height: 100px;
+  line-height: 100px;
+}
+
+.listing-uploader :deep(.el-upload-list--picture-card .el-upload-list__item) {
+  width: 100px;
+  height: 100px;
 }
 </style> 

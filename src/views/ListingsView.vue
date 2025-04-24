@@ -179,12 +179,21 @@ const fetchListings = async () => {
 const getFirstImage = (images) => {
   if (!images) return ''
   const imageList = images.split(',')
-  return imageList[0] || ''
+  const firstImage = imageList[0] || ''
+  // 如果 URL 已经是完整的，直接返回
+  if (firstImage.startsWith('http')) return firstImage
+  // 否则添加后端 API 地址
+  return `http://localhost:8080${firstImage}`
 }
 
 const getImageList = (images) => {
   if (!images) return []
-  return images.split(',')
+  return images.split(',').map(url => {
+    // 如果 URL 已经是完整的，直接返回
+    if (url.startsWith('http')) return url
+    // 否则添加后端 API 地址
+    return `http://localhost:8080${url}`
+  })
 }
 
 onMounted(() => {

@@ -7,7 +7,6 @@
         </div>
         
         <nav class="nav-section">
-          <router-link to="/" class="nav-item">首页</router-link>
           <router-link to="/listings" class="nav-item">房源市场</router-link>
           <router-link to="/profile" class="nav-item">个人中心</router-link>
         </nav>
@@ -92,7 +91,7 @@ const handleLogout = async () => {
 .nav-section {
   flex: 1;
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 40px;
   margin: 0 40px;
 }

@@ -23,8 +23,24 @@
           <template #header>
             <div class="card-header">
               <span>基本信息</span>
+              <el-tag :type="listing.status === 'available' ? 'success' : 'info'">
+                {{ listing.status === 'available' ? '可租' : '已租' }}
+              </el-tag>
             </div>
           </template>
+
+          <!-- 添加图片展示区域 -->
+          <div class="listing-images" v-if="listing.images">
+            <el-carousel :interval="4000" type="card" height="300px">
+              <el-carousel-item v-for="(url, index) in imageList" :key="index">
+                <el-image 
+                  :src="url" 
+                  fit="cover"
+                  :preview-src-list="imageList"
+                />
+              </el-carousel-item>
+            </el-carousel>
+          </div>
 
           <div class="listing-info">
             <div class="info-item">
@@ -48,17 +64,11 @@
               <span>¥{{ listing.price }}/月</span>
             </div>
             <div class="info-item">
-              <span class="label">状态：</span>
-              <el-tag :type="listing.status === 'available' ? 'success' : 'info'">
-                {{ listing.status === 'available' ? '可租' : '已租' }}
-              </el-tag>
-            </div>
-            <div class="info-item">
               <span class="label">创建时间：</span>
               <span>{{ formatDate(listing.CreatedAt) }}</span>
             </div>
-            <div class="info-item">
-              <span class="label">链上交易：</span>
+            <div class="info-item chain-tx-item">
+              <span class="label">链上交易ID：</span>
               <span>{{ listing.chain_tx || '暂无' }}</span>
             </div>
           </div>
@@ -81,27 +91,28 @@
               <span>{{ landlord.username }}</span>
             </div>
             <div class="info-item">
-              <span class="label">邮箱：</span>
+              <span class="label">房东邮箱：</span>
               <span>{{ landlord.email }}</span>
             </div>
             <div class="info-item" v-if="listing.status !== 'available'">
               <span class="label">租客ID：</span>
               <span>{{ listing.tenant_id }}</span>
             </div>
-            <div class="info-item" v-if="transaction">
-              <span class="label">交易ID：</span>
-              <span>{{ transaction.ID }}</span>
+            <div class="info-item transaction-item" v-if="transaction">
+              <div class="transaction-info">
+                <span class="label">交易ID：</span>
+                <span>{{ transaction.ID }}</span>
+              </div>
+              <el-button 
+                type="primary" 
+                size="small"
+                @click="viewTransactionDetail(transaction.ID)"
+              >
+                查看交易
+              </el-button>
             </div>
-            <div class="info-item" v-if="transaction">
-              <span class="label">起租日期：</span>
-              <span>{{ transaction.start_date }}</span>
-            </div>
-            <div class="info-item" v-if="transaction">
-              <span class="label">到期日期：</span>
-              <span>{{ transaction.end_date }}</span>
-            </div>
-            <div class="info-item">
-              <span class="label">链上交易：</span>
+            <div class="info-item chain-tx-item">
+              <span class="label">链上交易ID：</span>
               <span>{{ landlord.chain_tx || '暂无' }}</span>
             </div>
           </div>
@@ -230,6 +241,67 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 交易详情对话框 -->
+    <el-dialog
+      v-model="transactionDetailDialogVisible"
+      title="交易详情"
+      width="600px"
+    >
+      <div v-if="currentTransaction" class="transaction-detail">
+        <div class="detail-item">
+          <span class="label">交易ID：</span>
+          <span>{{ currentTransaction.ID }}</span>
+        </div>
+        <div class="detail-item">
+          <span class="label">房源ID：</span>
+          <span>{{ currentTransaction.listing_id }}</span>
+        </div>
+        <div class="detail-item">
+          <span class="label">房东ID：</span>
+          <span>{{ currentTransaction.landlord_id }}</span>
+        </div>
+        <div class="detail-item">
+          <span class="label">租客ID：</span>
+          <span>{{ currentTransaction.tenant_id }}</span>
+        </div>
+        <div class="detail-item">
+          <span class="label">金额：</span>
+          <span>¥{{ currentTransaction.amount }}/月</span>
+        </div>
+        <div class="detail-item">
+          <span class="label">起租日期：</span>
+          <span>{{ currentTransaction.start_date }}</span>
+        </div>
+        <div class="detail-item">
+          <span class="label">到期日期：</span>
+          <span>{{ currentTransaction.end_date }}</span>
+        </div>
+        <div class="detail-item">
+          <span class="label">状态：</span>
+          <el-tag :type="getStatusType(currentTransaction.status)">
+            {{ getStatusText(currentTransaction.status) }}
+          </el-tag>
+        </div>
+        <div class="detail-item">
+          <span class="label">创建时间：</span>
+          <span>{{ formatDate(currentTransaction.CreatedAt) }}</span>
+        </div>
+        <div class="detail-item">
+          <span class="label">更新时间：</span>
+          <span>{{ formatDate(currentTransaction.UpdatedAt) }}</span>
+        </div>
+        <div class="detail-item">
+          <span class="label">链上交易：</span>
+          <span>{{ currentTransaction.chain_tx || '暂无' }}</span>
+        </div>
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="transactionDetailDialogVisible = false">关闭</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -254,6 +326,8 @@ const transactionFormRef = ref(null)
 const reviewDialogVisible = ref(false)
 const reviewFormRef = ref(null)
 const submitting = ref(false)
+const transactionDetailDialogVisible = ref(false)
+const currentTransaction = ref(null)
 
 const transactionForm = ref({
   start_date: '',
@@ -544,6 +618,53 @@ const goBack = () => {
   router.back()
 }
 
+// 添加图片列表计算属性
+const imageList = computed(() => {
+  if (!listing.value.images) return []
+  return listing.value.images.split(',').map(url => {
+    // 如果 URL 已经是完整的，直接返回
+    if (url.startsWith('http')) return url
+    // 否则添加后端 API 地址
+    return `http://localhost:8080${url}`
+  })
+})
+
+// 获取状态类型
+const getStatusType = (status) => {
+  const types = {
+    pending: 'warning',
+    completed: 'success',
+    cancelled: 'danger'
+  }
+  return types[status] || 'info'
+}
+
+// 获取状态文本
+const getStatusText = (status) => {
+  const texts = {
+    pending: '待处理',
+    completed: '已完成',
+    cancelled: '已取消'
+  }
+  return texts[status] || status
+}
+
+// 查看交易详情
+const viewTransactionDetail = async (id) => {
+  try {
+    const response = await api.post('/transaction/get', { id })
+    if (response && response.transaction) {
+      currentTransaction.value = response.transaction
+      transactionDetailDialogVisible.value = true
+    } else {
+      ElMessage.error('获取交易详情失败：数据格式错误')
+    }
+  } catch (error) {
+    console.error('获取交易详情失败:', error)
+    ElMessage.error(error.response?.data?.error || '获取交易详情失败')
+  }
+}
+
 onMounted(() => {
   console.log('组件挂载，路由参数:', route.params)
   fetchListingDetail()
@@ -609,6 +730,10 @@ onMounted(() => {
   font-weight: 500;
 }
 
+.card-header .el-tag {
+  margin-left: 16px;
+}
+
 .listing-info,
 .landlord-info {
   display: grid;
@@ -623,8 +748,13 @@ onMounted(() => {
   min-width: 0; /* 防止内容溢出 */
 }
 
+/* 让链上交易ID占据整行 */
+.info-item:has(.label:contains("链上交易ID")) {
+  grid-column: 1 / -1;
+}
+
 .info-item .label {
-  width: 80px;
+  width: 100px; /* 增加标签宽度 */
   color: #606266;
   font-weight: 500;
   flex-shrink: 0; /* 防止标签缩小 */
@@ -635,6 +765,16 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 针对链上交易ID的特殊样式 */
+.info-item:has(.label:contains("链上交易ID")) span:not(.label) {
+  font-family: monospace; /* 使用等宽字体 */
+  background-color: #f5f7fa; /* 添加背景色 */
+  padding: 0 8px; /* 添加内边距 */
+  border-radius: 4px; /* 添加圆角 */
+  word-break: break-all; /* 允许在任意字符间断行 */
+  white-space: normal; /* 允许文本换行 */
 }
 
 .reviews-list {
@@ -730,5 +870,94 @@ onMounted(() => {
 .empty-reviews p {
   color: #909399;
   margin: 0;
+}
+
+.listing-images {
+  margin-bottom: 20px;
+}
+
+.listing-images :deep(.el-carousel__item) {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.listing-images :deep(.el-image) {
+  width: 100%;
+  height: 100%;
+}
+
+.landlord-info {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  padding: 16px;
+}
+
+.info-item {
+  display: flex;
+  line-height: 28px;
+  min-width: 0;
+}
+
+.info-item .label {
+  width: 100px;
+  color: #606266;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.info-item span:not(.label) {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 交易ID项的特殊样式 */
+.transaction-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.transaction-info {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+/* 链上交易ID占据整行 */
+.chain-tx-item {
+  grid-column: 1 / -1 !important;
+}
+
+.chain-tx-item span:not(.label) {
+  font-family: monospace;
+  background-color: #f5f7fa;
+  padding: 0 8px;
+  border-radius: 4px;
+  word-break: break-all;
+  white-space: normal;
+}
+
+.transaction-detail {
+  padding: 20px;
+}
+
+.detail-item {
+  display: flex;
+  margin-bottom: 16px;
+  line-height: 32px;
+}
+
+.detail-item .label {
+  width: 100px;
+  color: #606266;
+  font-weight: 500;
+}
+
+.detail-item:last-child {
+  margin-bottom: 0;
 }
 </style> 
