@@ -52,10 +52,6 @@
               <span>{{ listing.housename }}</span>
             </div>
             <div class="info-item">
-              <span class="label">描述：</span>
-              <span>{{ listing.description }}</span>
-            </div>
-            <div class="info-item">
               <span class="label">位置：</span>
               <span>{{ listing.location }}</span>
             </div>
@@ -64,8 +60,12 @@
               <span>¥{{ listing.price }}/月</span>
             </div>
             <div class="info-item">
-              <span class="label">创建时间：</span>
+              <span class="label">上架时间：</span>
               <span>{{ formatDate(listing.CreatedAt) }}</span>
+            </div>
+            <div class="info-item description-item">
+              <span class="label">描述：</span>
+              <span>{{ listing.description }}</span>
             </div>
             <div class="info-item chain-tx-item">
               <span class="label">链上交易ID：</span>
@@ -673,7 +673,7 @@ onMounted(() => {
 
 <style scoped>
 .listing-detail {
-  padding: 16px;
+  padding: 8px;
 }
 
 .listing-container {
@@ -685,17 +685,17 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 }
 
 .header-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .back-button {
-  margin-right: 12px;
+  margin-right: 8px;
 }
 
 .listing-header h1 {
@@ -707,7 +707,7 @@ onMounted(() => {
 
 .listing-content {
   display: grid;
-  gap: 16px;
+  gap: 8px;
 }
 
 .listing-card,
@@ -721,7 +721,7 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
+  padding: 8px 12px;
   border-bottom: 1px solid #ebeef5;
 }
 
@@ -731,33 +731,28 @@ onMounted(() => {
 }
 
 .card-header .el-tag {
-  margin-left: 16px;
+  margin-left: 8px;
 }
 
 .listing-info,
 .landlord-info {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  padding: 16px;
+  gap: 8px;
+  padding: 12px;
 }
 
 .info-item {
   display: flex;
-  line-height: 28px;
-  min-width: 0; /* 防止内容溢出 */
-}
-
-/* 让链上交易ID占据整行 */
-.info-item:has(.label:contains("链上交易ID")) {
-  grid-column: 1 / -1;
+  line-height: 24px;
+  min-width: 0;
 }
 
 .info-item .label {
-  width: 100px; /* 增加标签宽度 */
+  width: 100px;
   color: #606266;
   font-weight: 500;
-  flex-shrink: 0; /* 防止标签缩小 */
+  flex-shrink: 0;
 }
 
 .info-item span:not(.label) {
@@ -767,24 +762,37 @@ onMounted(() => {
   white-space: nowrap;
 }
 
-/* 针对链上交易ID的特殊样式 */
-.info-item:has(.label:contains("链上交易ID")) span:not(.label) {
-  font-family: monospace; /* 使用等宽字体 */
-  background-color: #f5f7fa; /* 添加背景色 */
-  padding: 0 8px; /* 添加内边距 */
-  border-radius: 4px; /* 添加圆角 */
-  word-break: break-all; /* 允许在任意字符间断行 */
-  white-space: normal; /* 允许文本换行 */
+/* 描述字段的特殊样式 */
+.description-item {
+  grid-column: 1 / -1; /* 占据整行 */
+  display: flex;
+  align-items: flex-start; /* 顶部对齐 */
+  line-height: 1.6;
+}
+
+.description-item span:not(.label) {
+  flex: 1;
+  white-space: pre-wrap !important; /* 覆盖原有的 nowrap 设置 */
+  overflow: visible !important; /* 覆盖原有的 hidden 设置 */
+  text-overflow: clip !important; /* 覆盖原有的 ellipsis 设置 */
+  word-break: break-word;
+  line-height: 1.6;
+  padding: 4px 0;
+}
+
+/* 让链上交易ID占据整行 */
+.info-item:has(.label:contains("链上交易ID")) {
+  grid-column: 1 / -1;
 }
 
 .reviews-list {
   display: grid;
-  gap: 12px;
-  padding: 16px;
+  gap: 8px;
+  padding: 12px;
 }
 
 .review-item {
-  padding: 12px;
+  padding: 8px;
   background: #f5f7fa;
   border-radius: 8px;
 }
@@ -793,7 +801,7 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .review-actions {
@@ -821,7 +829,7 @@ onMounted(() => {
 
 .review-content {
   color: #606266;
-  line-height: 1.6;
+  line-height: 1.4;
   margin: 0;
 }
 
@@ -851,11 +859,11 @@ onMounted(() => {
 }
 
 :deep(.el-form-item) {
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 :deep(.el-dialog__body) {
-  padding: 20px;
+  padding: 12px;
 }
 
 .empty-reviews {
@@ -873,7 +881,7 @@ onMounted(() => {
 }
 
 .listing-images {
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 
 .listing-images :deep(.el-carousel__item) {
@@ -942,13 +950,13 @@ onMounted(() => {
 }
 
 .transaction-detail {
-  padding: 20px;
+  padding: 12px;
 }
 
 .detail-item {
   display: flex;
-  margin-bottom: 16px;
-  line-height: 32px;
+  margin-bottom: 8px;
+  line-height: 24px;
 }
 
 .detail-item .label {

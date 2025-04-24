@@ -108,9 +108,8 @@
           </template>
 
           <el-table :data="tenantListings" style="width: 100%">
-            <el-table-column prop="ID" label="房源ID" width="100" />
-            <el-table-column prop="housename" label="房源名称" />
-            <el-table-column prop="description" label="描述" />
+            <el-table-column prop="ID" label="房源ID" width="80" />
+            <el-table-column prop="housename" label="房源名称" width="140" />
             <el-table-column prop="location" label="位置" />
             <el-table-column prop="price" label="价格">
               <template #default="scope">
@@ -122,7 +121,7 @@
                 <el-tag type="success">已租用</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="landlord_id" label="房东ID" width="100" />
+            <el-table-column prop="landlord_id" label="房东ID" width="80" />
             <el-table-column label="评价">
               <template #default="scope">
                 <el-tag v-if="scope.row.reviews && scope.row.reviews.length > 0" type="success">
@@ -233,8 +232,8 @@
           <span class="label">更新时间：</span>
           <span>{{ formatDate(currentTransaction.UpdatedAt) }}</span>
         </div>
-        <div class="detail-item">
-          <span class="label">链上交易：</span>
+        <div class="detail-item chain-tx-detail">
+          <span class="label">链上交易ID：</span>
           <span>{{ currentTransaction.chain_tx || '暂无' }}</span>
         </div>
       </div>
@@ -276,7 +275,7 @@
             placeholder="请输入房源描述"
           />
         </el-form-item>
-        <el-form-item label="价格" prop="price">
+        <el-form-item label="价格/月" prop="price">
           <el-input-number
             v-model="createListingForm.price"
             :min="0"
@@ -799,6 +798,18 @@ onMounted(() => {
 
 .detail-item:last-child {
   margin-bottom: 0;
+}
+
+/* 链上交易字段的特殊样式 */
+.chain-tx-detail span:not(.label) {
+  font-family: monospace;
+  background-color: #f5f7fa;
+  padding: 4px 8px;
+  border-radius: 4px;
+  word-break: break-all;
+  white-space: normal;
+  flex: 1;
+  line-height: 1.6;
 }
 
 .el-select {
